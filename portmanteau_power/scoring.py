@@ -182,7 +182,7 @@ def seam_score(left: str, right: str) -> float:
 # Overall strength score
 # ---------------------------------------------------------------------------
 
-_UGLY_SUBSTRINGS = re.compile(r"(qx|qj|jq|wv|vw|cj|zf|xq|bx|fq|vq|zx)")
+_UGLY_SUBSTRINGS = re.compile(r"(qx|qj|jq|wv|vw|cj|zf|bx|fq|vq|zx)")
 _TRIPLE_RE = re.compile(r"(.)\1\1")
 _CONSONANT_RUN = re.compile(rf"[{CONSONANTS}]{{5,}}")
 _VOWEL_RUN = re.compile(rf"[{VOWELS}]{{4,}}")

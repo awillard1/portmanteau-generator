@@ -144,7 +144,9 @@ def apply_cli_overrides(
     if allow_triples is not None:
         config["join"]["allow_triples"] = allow_triples
     if banned_substrings is not None:
-        config["constraints"]["banned_substrings"].extend(banned_substrings)
+        config["constraints"]["banned_substrings"] = (
+            config["constraints"]["banned_substrings"] + banned_substrings
+        )
     if target_size is not None:
         config["target_size"] = target_size
 

@@ -139,9 +139,9 @@ def test_ngram_model_scores_known_word_higher():
 
 def test_passes_basic_filter():
     assert passes_basic_filter("novaforg", 5, 12) is True
-    assert passes_basic_filter("ab", 5, 12) is False        # too short
-    assert passes_basic_filter("toolongstring123", 5, 12) is False  # too long / non-alpha
-    assert passes_basic_filter("novaforg", 5, 12, ["nova"]) is False  # banned
+    assert passes_basic_filter("ab", 5, 12) is False        # too short (len=2 < min_len=5)
+    assert passes_basic_filter("toolongstring123", 5, 12) is False  # too long AND non-alpha
+    assert passes_basic_filter("novaforg", 5, 12, ["nova"]) is False  # banned substring
 
 
 # ---------------------------------------------------------------------------

@@ -306,6 +306,9 @@ THEME_BANKS: Dict[str, Dict[str, List[str]]] = {
 
     # ------------------------------------------------------------------
     # COMMON / EVERYDAY WORDS (emotional, descriptive, universal)
+    # Note: many words intentionally appear in both prefixes AND suffixes
+    # because everyday words like "love", "hope", etc. attach naturally
+    # on either side of a portmanteau root (e.g. "lovepath", "lifehope").
     # ------------------------------------------------------------------
     "common": {
         "prefixes": [

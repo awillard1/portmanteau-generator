@@ -134,6 +134,7 @@ def _overlap_joins(a: str, b: str, min_ov: int = 2, max_ov: int = 6) -> List[str
 
 
 _CONNECTORS = ("", "a", "o", "i", "e", "x")
+# Common vowel connectors in English portmanteaus; "x" added for tech/brand aesthetics.
 
 
 def _smooth_joins(a: str, b: str) -> List[str]:
