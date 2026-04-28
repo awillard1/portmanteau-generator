@@ -1,3 +1,22 @@
+Metadata-Version: 2.4
+Name: portmanteau-power
+Version: 4.0.0
+Summary: Configurable portmanteau / name generator with theme banks, n-gram scoring, and explainability.
+License: MIT
+Keywords: portmanteau,name-generator,nlp,branding
+Classifier: Programming Language :: Python :: 3
+Classifier: Operating System :: OS Independent
+Classifier: Topic :: Text Processing :: Linguistic
+Requires-Python: >=3.9
+Description-Content-Type: text/markdown
+Requires-Dist: nltk>=3.8
+Requires-Dist: wordfreq>=3.0
+Requires-Dist: pronouncing>=0.2
+Requires-Dist: pyyaml>=6.0
+Provides-Extra: dev
+Requires-Dist: pytest>=7.0; extra == "dev"
+Requires-Dist: pytest-cov; extra == "dev"
+
 # portmanteau_power
 
 A small, maintainable **v4 portmanteau / name generator** with:
