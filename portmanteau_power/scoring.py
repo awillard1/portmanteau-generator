@@ -4,6 +4,7 @@ scoring.py – Character n-gram model, seam scoring, and overall candidate stren
 
 from __future__ import annotations
 
+import functools
 import math
 import re
 from typing import Dict, Iterable, Optional, Tuple
@@ -32,20 +33,48 @@ def is_alpha(word: str) -> bool:
     return bool(_ALPHA_RE.fullmatch(word))
 
 
+@functools.lru_cache(maxsize=8192)
 def approx_syllables(word: str) -> int:
     groups = re.findall(r"[aeiouy]+", word)
     return max(1, len(groups))
 
 
-def cmu_syllables(word: str) -> Optional[int]:
+@functools.lru_cache(maxsize=8192)
+def _get_phones(word: str) -> Optional[str]:
+    """Return the first CMU phones string for *word*, or None.  Cached so
+    each unique word hits the CMU dict at most once per process lifetime."""
     if not _PRONOUNCING_OK:
         return None
     phones = _pronouncing.phones_for_word(word)
-    if not phones:
+    return phones[0] if phones else None
+
+
+def cmu_syllables(word: str) -> Optional[int]:
+    phones = _get_phones(word)
+    if phones is None:
         return None
-    return _pronouncing.syllable_count(phones[0])
+    return _pronouncing.syllable_count(phones)
 
 
+def phoneme_score(word: str) -> float:
+    """
+    Score pronounceability via CMU phoneme dictionary.
+    Returns a value in roughly [0, 1]; unknown words score 0.
+    Uses the cached :func:`_get_phones` result so no duplicate CMU lookups
+    occur when :func:`cmu_syllables` is also called for the same word.
+    """
+    phones = _get_phones(word)
+    if phones is None:
+        return 0.0
+    # Being *in* the dict is already a strong signal
+    base = 0.6
+    syl = _pronouncing.syllable_count(phones)
+    # Prefer 2-3 syllables
+    syl_bonus = 0.4 if syl in (2, 3) else (0.2 if syl == 1 else 0.1)
+    return base + syl_bonus
+
+
+@functools.lru_cache(maxsize=4096)
 def zipf(word: str) -> float:
     if _WORDFREQ_OK:
         return _zipf(word, "en")
@@ -115,28 +144,13 @@ def ngram_logprob(word: str, model: NGramModel, n: int = 3) -> float:
 # Phoneme-based scoring (optional, via pronouncing / CMU dict)
 # ---------------------------------------------------------------------------
 
-def phoneme_score(word: str) -> float:
-    """
-    Score pronounceability via CMU phoneme dictionary.
-    Returns a value in roughly [0, 1]; unknown words score 0.
-    """
-    if not _PRONOUNCING_OK:
-        return 0.0
-    phones = _pronouncing.phones_for_word(word)
-    if not phones:
-        return 0.0
-    # Being *in* the dict is already a strong signal
-    base = 0.6
-    syl = _pronouncing.syllable_count(phones[0])
-    # Prefer 2-3 syllables
-    syl_bonus = 0.4 if syl in (2, 3) else (0.2 if syl == 1 else 0.1)
-    return base + syl_bonus
-
+# phoneme_score / cmu_syllables / _get_phones are defined above, near zipf.
 
 # ---------------------------------------------------------------------------
 # Seam penalty
 # ---------------------------------------------------------------------------
 
+@functools.lru_cache(maxsize=4096)
 def seam_score(left: str, right: str) -> float:
     """
     Score the boundary between *left* (end) and *right* (start).
@@ -176,6 +190,23 @@ def seam_score(left: str, right: str) -> float:
         p += 0.30
 
     return p
+
+
+# ---------------------------------------------------------------------------
+# Morpheme bonus helpers
+# ---------------------------------------------------------------------------
+
+def build_morpheme_pattern(morpheme_words: Iterable[str]) -> Optional[re.Pattern]:
+    """Pre-compile a regex that finds all morpheme substrings in one pass.
+
+    Morphemes are sorted longest-first so the alternation prefers longer
+    matches, avoiding spurious double-counting of nested morphemes.
+    Returns ``None`` if the input list is empty.
+    """
+    words = sorted({w for w in morpheme_words if w}, key=len, reverse=True)
+    if not words:
+        return None
+    return re.compile("|".join(re.escape(w) for w in words))
 
 
 # ---------------------------------------------------------------------------
@@ -221,6 +252,7 @@ def score_candidate(
     *,
     weights: Optional[Dict[str, float]] = None,
     morpheme_bonus_words: Iterable[str] = (),
+    morpheme_bonus_pattern: Optional[re.Pattern] = None,
     ngram_n: int = 3,
 ) -> Tuple[float, Dict[str, float]]:
     """
@@ -228,6 +260,9 @@ def score_candidate(
 
     Returns (total_score, breakdown_dict).
     breakdown keys: ngram, wordfreq, phoneme, seam, structure
+
+    Pass *morpheme_bonus_pattern* (pre-built with :func:`build_morpheme_pattern`)
+    for fast single-pass substring matching instead of the O(morphemes) loop.
     """
     w = weights or {}
     w_ngram    = w.get("ngram",     0.35)
@@ -259,7 +294,8 @@ def score_candidate(
     seam_scaled = (seam_avg + 2.0) / 3.0  # shift to [0,1]
 
     # --- structure ---
-    # Syllable preference
+    # Syllable preference: reuse cached _get_phones via cmu_syllables so the
+    # CMU dict is never consulted twice for the same word in one score call.
     syl = cmu_syllables(word)
     if syl is None:
         syl = approx_syllables(word)
@@ -284,12 +320,16 @@ def score_candidate(
     sibilant = sum(1 for c in word if c in "s") / len(word)
     struct_s = 0.4 * syl_s + 0.2 * ratio_s + 0.1 * hard_end + 0.15 * hard_c + 0.15 * liquid_c - 0.2 * max(0, sibilant - 0.3)
 
-    # morpheme bonus
-    mb = 0.0
-    for m in morpheme_bonus_words:
-        if m in word:
-            mb += 0.55
-    mb = min(mb, 2.0)  # cap
+    # morpheme bonus – fast single-pass regex when pattern is provided,
+    # otherwise fall back to the per-morpheme substring loop.
+    if morpheme_bonus_pattern is not None:
+        mb = min(len(morpheme_bonus_pattern.findall(word)) * 0.55, 2.0)
+    else:
+        mb = 0.0
+        for m in morpheme_bonus_words:
+            if m in word:
+                mb += 0.55
+        mb = min(mb, 2.0)  # cap
 
     breakdown = {
         "ngram":    round(ng_scaled,   4),

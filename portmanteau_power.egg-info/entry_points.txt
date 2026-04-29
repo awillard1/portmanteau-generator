@@ -1,0 +1,2 @@
+[console_scripts]
+portmanteau-power = portmanteau_power.cli:main
