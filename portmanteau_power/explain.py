@@ -50,7 +50,7 @@ class Candidate:
         return "\t".join(parts)
 
     def as_jsonl_dict(self) -> Dict:
-        d: Dict = {
+        result: Dict = {
             "name":           self.text,
             "score":          round(self.score, 6),
             "score_breakdown":self.score_breakdown,
@@ -60,10 +60,10 @@ class Candidate:
             "theme_sources":  self.theme_sources,
         }
         if self.domain_available is not None:
-            d["domain_available"] = self.domain_available
+            result["domain_available"] = self.domain_available
         if self.international_safe is not None:
-            d["international_safe"] = self.international_safe
-        return d
+            result["international_safe"] = self.international_safe
+        return result
 
 
 def write_names_only(candidates: List[Candidate], path: str) -> None:

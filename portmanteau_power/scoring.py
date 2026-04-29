@@ -273,9 +273,9 @@ def stress_score(word: str) -> float:
     """
     Score the stress pattern using CMU pronouncing dictionary.
 
-    Trochee (STRESS-unstress, e.g. *Twitter*, *Apple*) → 1.0
-    Dactyl  (STRESS-u-u, e.g. *Amazon*)               → 0.85
-    Iamb    (unstress-STRESS, e.g. *Slack*)            → 0.75
+    Trochee (STRESS-unstress, e.g. "Twitter", "Apple") → 1.0
+    Dactyl  (STRESS-u-u, e.g. "Amazon")                → 0.85
+    Iamb    (unstress-STRESS, e.g. "Slack")            → 0.75
     Single syllable                                     → 0.65
     Other                                               → 0.40
 

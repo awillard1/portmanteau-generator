@@ -53,7 +53,7 @@ BRAND_NAMES: Tuple[str, ...] = (
     "asos", "zalando", "revolve", "farfetch", "ssense", "mytheresa",
     "nordstrom", "saks", "neiman", "bloomingdale", "macys",
     "target", "walmart", "costco", "kroger", "safeway", "trader",
-    "whole", "sprouts", "aldi", "lidl", "aldi",
+    "whole", "sprouts", "lidl",
     # Food / Beverage
     "starbucks", "dunkin", "subway", "chipotle", "panera", "sweetgreen",
     "shake", "whataburger", "sonic", "wendys", "chick",
@@ -196,8 +196,8 @@ I18N_BLOCKLIST: Dict[str, FrozenSet[str]] = {
         "kanker", "godverdomme", "slet", "eikel",
     }),
     "ru": frozenset({
-        "khuy", "pizda", "blyad", "suka", "pidor", "ebat",
-        "yebat", "mudak", "zalupa", "bliad", "ebany",
+        "khuy", "pizda", "blyat", "suka", "pidor", "ebat",
+        "yebat", "mudak", "zalupa", "ebany",
     }),
     "ja": frozenset({
         "kuso", "manko", "chinpo", "chikushо", "chikusho",

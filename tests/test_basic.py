@@ -291,7 +291,7 @@ def test_check_domain_structure():
     assert result["name"] == "novaforge"
     assert "com" in result
     assert "io" in result
-    # False means taken; since we patched _is_registered → False, available = True
+    # _is_registered returns False (not registered) → domain is available (True)
     assert result["com"] is True
     assert result["io"] is True
 
