@@ -202,7 +202,9 @@ def _syllable_boundary_positions(word: str) -> List[int]:
     for i in range(1, len(vowel_groups)):
         prev_end = vowel_groups[i - 1].end()
         curr_start = vowel_groups[i].start()
-        # place the boundary at the midpoint of the consonant cluster
+        # Place the boundary at the midpoint of the consonant cluster.
+        # The +1 ensures we round up for odd-length clusters, biasing the
+        # split slightly toward the following syllable (more natural in English).
         mid = prev_end + (curr_start - prev_end + 1) // 2
         positions.append(mid)
     return positions
@@ -355,6 +357,8 @@ def generate(
     # Seed the model with the most common English words so that the trigram
     # distribution is well-calibrated and novel portmanteaus are not unfairly
     # penalised for lacking obscure letter patterns.
+    # Note: top_n_list does internal lazy loading; the first call may take a
+    # fraction of a second, but subsequent calls are fast.
     if _WORDFREQ_TOP_OK:
         try:
             for w in _wf_top_n_list("en", 5000):
