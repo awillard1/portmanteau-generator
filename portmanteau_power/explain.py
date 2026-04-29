@@ -26,6 +26,10 @@ class Candidate:
     affixes_used: List[str] = field(default_factory=list)  # prefix/suffix morphemes applied
     theme_sources: List[str] = field(default_factory=list) # theme names that contributed
 
+    # Post-generation annotations (populated by CLI / API when requested)
+    domain_available: Optional[Dict[str, object]] = field(default=None)
+    international_safe: Optional[bool] = field(default=None)
+
     def as_tsv_row(self, include_breakdown: bool = False) -> str:
         if include_breakdown:
             bd = self.score_breakdown
@@ -35,15 +39,18 @@ class Candidate:
                 f"{bd.get('ngram', 0):.4f}",
                 f"{bd.get('wordfreq', 0):.4f}",
                 f"{bd.get('phoneme', 0):.4f}",
+                f"{bd.get('g2p', 0):.4f}",
                 f"{bd.get('seam', 0):.4f}",
                 f"{bd.get('structure', 0):.4f}",
+                f"{bd.get('stress', 0):.4f}",
+                f"{bd.get('melody', 0):.4f}",
             ]
         else:
             parts = [self.text, f"{self.score:.4f}"]
         return "\t".join(parts)
 
     def as_jsonl_dict(self) -> Dict:
-        return {
+        d: Dict = {
             "name":           self.text,
             "score":          round(self.score, 6),
             "score_breakdown":self.score_breakdown,
@@ -52,6 +59,11 @@ class Candidate:
             "affixes_used":   self.affixes_used,
             "theme_sources":  self.theme_sources,
         }
+        if self.domain_available is not None:
+            d["domain_available"] = self.domain_available
+        if self.international_safe is not None:
+            d["international_safe"] = self.international_safe
+        return d
 
 
 def write_names_only(candidates: List[Candidate], path: str) -> None:
@@ -70,7 +82,7 @@ def write_tsv(
     with open(path, "w", encoding="utf-8") as fh:
         # header
         if include_breakdown:
-            fh.write("name\tscore\tngram\twordfreq\tphoneme\tseam\tstructure\n")
+            fh.write("name\tscore\tngram\twordfreq\tphoneme\tg2p\tseam\tstructure\tstress\tmelody\n")
         else:
             fh.write("name\tscore\n")
         for c in candidates:
@@ -85,4 +97,4 @@ def write_jsonl(candidates: List[Candidate], path: str) -> None:
 
 
 TSV_SCORE_HEADER = "name\tscore"
-TSV_FULL_HEADER  = "name\tscore\tngram\twordfreq\tphoneme\tseam\tstructure"
+TSV_FULL_HEADER  = "name\tscore\tngram\twordfreq\tphoneme\tg2p\tseam\tstructure\tstress\tmelody"

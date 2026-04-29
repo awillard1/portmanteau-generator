@@ -1,5 +1,5 @@
 # configs/default.yml
-# portmanteau_power v4 – Default configuration
+# portmanteau_power v5 – Default configuration
 #
 # All keys are optional; missing keys fall back to built-in defaults.
 # Override any section on the command line or by creating your own config.
@@ -26,13 +26,16 @@ themes:
     - social
 
 scoring:
-  # Relative importance of each scoring dimension (values are normalised internally)
+  # Relative importance of each scoring dimension (must sum to 1.0)
   weights:
-    ngram: 0.35        # character-trigram language-model fit
-    wordfreq: 0.20     # English word-frequency (wordfreq)
-    phoneme: 0.15      # CMU pronouncing-dict phoneme score
-    seam: 0.15         # smoothness of letter transitions
-    structure: 0.15    # syllable count, vowel ratio, hard-consonant balance
+    ngram:     0.28   # character-trigram language-model fit
+    wordfreq:  0.16   # English word-frequency (wordfreq)
+    phoneme:   0.08   # CMU pronouncing-dict score (rewards known-word patterns)
+    g2p:       0.10   # rule-based grapheme-to-phoneme pronounceability
+    seam:      0.13   # smoothness of letter transitions
+    structure: 0.12   # syllable count, vowel ratio, hard-consonant balance
+    stress:    0.07   # trochee / iamb stress-pattern preference
+    melody:    0.06   # alliteration + vowel harmony
 
   morpheme_bonus: 0.55  # extra score per recognised theme morpheme present
 
@@ -58,3 +61,22 @@ join:
   allow_triples: false    # triple blends (slower; better coverage)
   triple_pool: 120        # intermediate join pool size for triples
   max_per_signature: 3    # max near-duplicates in final output
+
+features:
+  # Filter names that are offensive/vulgar in common languages
+  # (Spanish, French, German, Italian, Portuguese, Dutch, Russian,
+  #  Japanese, Chinese, Hindi, Arabic, Korean, English)
+  safe_international: false
+
+  # TLDs to check with --check-domains (DNS availability)
+  domain_check_tlds:
+    - com
+    - net
+    - io
+
+  # AI re-ranking via local Ollama (used with --rerank-top N)
+  rerank:
+    top_n: 20
+    model: llama3
+    ollama_url: "http://localhost:11434"
+    context: "a modern brand"

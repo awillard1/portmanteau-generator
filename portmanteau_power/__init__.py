@@ -1,3 +1,3 @@
-"""portmanteau_power – v4 configurable portmanteau / name generator."""
+"""portmanteau_power – v5 configurable portmanteau / name generator."""
 
-__version__ = "4.0.0"
+__version__ = "5.0.0"

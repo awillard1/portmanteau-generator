@@ -27,11 +27,14 @@ DEFAULT_CONFIG: Dict[str, Any] = {
     },
     "scoring": {
         "weights": {
-            "ngram": 0.35,
-            "wordfreq": 0.20,
-            "phoneme": 0.15,
-            "seam": 0.15,
-            "structure": 0.15,
+            "ngram":     0.28,
+            "wordfreq":  0.16,
+            "phoneme":   0.08,
+            "g2p":       0.10,
+            "seam":      0.13,
+            "structure": 0.12,
+            "stress":    0.07,
+            "melody":    0.06,
         },
         "morpheme_bonus": 0.55,
     },
@@ -53,6 +56,19 @@ DEFAULT_CONFIG: Dict[str, Any] = {
         "allow_triples": False,
         "triple_pool": 120,
         "max_per_signature": 3,
+    },
+    "features": {
+        # Set to true to filter names that are offensive in common languages
+        "safe_international": False,
+        # Domain check TLDs (used by --check-domains; not run during generation)
+        "domain_check_tlds": ["com", "net", "io"],
+        # AI re-ranking via Ollama (used by --rerank-top; not run during generation)
+        "rerank": {
+            "top_n": 20,
+            "model": "llama3",
+            "ollama_url": "http://localhost:11434",
+            "context": "a modern brand",
+        },
     },
 }
 

@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "portmanteau-power"
-version = "4.0.0"
-description = "Configurable portmanteau / name generator with theme banks, n-gram scoring, and explainability."
+version = "5.0.0"
+description = "Configurable portmanteau / name generator with theme banks, n-gram scoring, explainability, domain checking, AI re-ranking, and a FastAPI web interface."
 readme = "README.md"
 license = { text = "MIT" }
 requires-python = ">=3.9"
@@ -23,9 +23,18 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+api = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
+]
 dev = [
     "pytest>=7.0",
     "pytest-cov",
+    "httpx>=0.27",   # needed by FastAPI TestClient
+]
+all = [
+    "fastapi>=0.110",
+    "uvicorn[standard]>=0.29",
 ]
 
 [project.scripts]

@@ -1,13 +1,20 @@
 # portmanteau_power
 
-A small, maintainable **v4 portmanteau / name generator** with:
+A **v5 portmanteau / name generator** with a full brand-quality scoring pipeline, international safety, domain checking, AI re-ranking, and an optional web API.
 
-- ✅ Multi-domain, configurable **theme banks** (prefixes & suffixes)
-- ✅ Character **trigram** language-model scoring for pronounceability
+- ✅ Multi-domain, configurable **theme banks** (18 domains)
+- ✅ Character **trigram** language model seeded with a **~500-name brand corpus**
 - ✅ **Phoneme-based** scoring via CMU pronouncing dictionary (optional)
-- ✅ **Smarter join strategies**: overlap, smooth, splice — with seam scoring
-- ✅ **Diversity** selection via MMR-style signature capping
-- ✅ Full **explainability** output (JSONL provenance + TSV scores)
+- ✅ **Rule-based G2P** pronounceability score for novel coined words
+- ✅ **Stress-pattern** bonus (trochee/iamb preference, via CMU dict)
+- ✅ **Melody score**: alliteration + vowel harmony
+- ✅ **3 join strategies** (overlap, smooth, splice) + optional triple blends
+- ✅ **MMR-style diversity** selection
+- ✅ Full **explainability** (JSONL provenance + TSV scores)
+- ✅ **International safety filter** (13 languages; `--safe-international`)
+- ✅ **Domain availability check** via DNS (`--check-domains`)
+- ✅ **AI re-ranking** via local Ollama LLM (`--rerank-top N`)
+- ✅ **FastAPI web API** (optional; `pip install "portmanteau-power[api]"`)
 - ✅ **Config file** (YAML or JSON) for all knobs
 - ✅ Runs **offline** — no network access required after initial NLTK download
 
@@ -27,6 +34,12 @@ Or install the package in editable mode:
 pip install -e ".[dev]"
 ```
 
+For the FastAPI web API:
+
+```bash
+pip install -e ".[api]"
+```
+
 ---
 
 ## Quick Start
@@ -42,11 +55,26 @@ python -m portmanteau_power.cli input.txt output.txt \
     --config configs/default.yml \
     --explain out.jsonl
 
-# With TSV score output
+# With TSV score output (all 8 scoring dimensions)
 python -m portmanteau_power.cli input.txt output.txt \
     --target-size 500 \
     --include-scores \
     --themes common,power,space
+
+# International safety + domain checking
+python -m portmanteau_power.cli input.txt output.txt \
+    --target-size 200 \
+    --safe-international \
+    --check-domains \
+    --domain-tlds com,io \
+    --explain out.jsonl
+
+# AI re-ranking via local Ollama (Ollama must be running)
+python -m portmanteau_power.cli input.txt output.txt \
+    --target-size 200 \
+    --rerank-top 20 \
+    --rerank-model llama3 \
+    --rerank-context "AI-powered productivity app"
 ```
 
 `input.txt` – one term per line:
@@ -68,51 +96,47 @@ usage: portmanteau_power.cli [-h]
                               [--target-size TARGET_SIZE]
                               [--config PATH]
                               [--themes THEME,...]
-                              [--min-len MIN_LEN]
-                              [--max-len MAX_LEN]
-                              [--per-root-variants PER_ROOT_VARIANTS]
-                              [--per-pair-keep PER_PAIR_KEEP]
+                              [--min-len MIN_LEN] [--max-len MAX_LEN]
+                              [--per-root-variants N] [--per-pair-keep N]
                               [--allow-triples]
                               [--banned-substrings A,B,...]
+                              [--safe-international]
+                              [--check-domains] [--domain-tlds com,net,...]
+                              [--rerank-top N] [--rerank-model MODEL]
+                              [--ollama-url URL] [--rerank-context TEXT]
                               [--include-scores]
                               [--explain JSONL_PATH]
                               [--version]
                               input output
 
-portmanteau_power v4.0.0 – configurable portmanteau / name generator.
+portmanteau_power v5.0.0 – configurable portmanteau / name generator.
 
-positional arguments:
-  input                 Input text file (one term per line).
-  output                Output file for generated names.
-
-options:
-  -h, --help            show this help message and exit
   --target-size N       Max number of names to output. (default: 5000)
   --config PATH         YAML or JSON config file (overrides built-in defaults).
-  --themes THEME,...    Comma-separated list of themes to enable.
-                        Available: power, government, business, healthcare,
+  --themes THEME,...    Available: power, government, business, healthcare,
                           environment, religion, tech, finance, education,
-                          security, energy, space, common, social, food, sports,
-                          travel, arts
-                        (default: power,government,business,healthcare,
-                          environment,religion,tech,finance,education,security,
-                          energy,space,common,social)
-  --min-len MIN_LEN     Minimum output name length. (default: 5)
-  --max-len MAX_LEN     Maximum output name length. (default: 12)
-  --per-root-variants N Max WordNet variants kept per root. (default: 70)
-  --per-pair-keep N     Top candidates kept per pairwise join. (default: 10)
-  --allow-triples       Enable limited triple blends (slower).
-  --banned-substrings   Comma-separated substrings to ban from output.
-  --include-scores      Write TSV output (name + score breakdown columns).
-  --explain JSONL_PATH  Write JSONL provenance file (one record per name).
-  --version             Show version and exit.
+                          security, energy, space, common, social, food,
+                          sports, travel, arts
+  --min-len / --max-len   Length constraints (default: 5–12).
+  --per-root-variants N   Max WordNet variants per root. (default: 70)
+  --per-pair-keep N       Top candidates per pairwise join. (default: 10)
+  --allow-triples         Enable triple blends (slower).
+  --banned-substrings     Comma-separated substrings to ban.
+  --safe-international    Filter offensive names in 13 languages.
+  --check-domains         DNS-check domain availability.
+  --domain-tlds com,…     TLDs to check (default: com,net,io).
+  --rerank-top N          Re-rank top N names via local Ollama LLM.
+  --rerank-model MODEL    Ollama model (default: llama3).
+  --ollama-url URL        Ollama server URL (default: http://localhost:11434).
+  --rerank-context TEXT   Brand description for AI re-ranking.
+  --include-scores        Write TSV with all 8 score breakdown columns.
+  --explain JSONL_PATH    Write JSONL provenance file.
+  --version               Show version and exit.
 ```
 
 ---
 
 ## Theme Banks
-
-The following themes ship with the generator. Each supplies **prefixes** and **suffixes** derived from domain vocabulary. Themes can be mixed freely.
 
 | Theme | Domain | Example morphemes |
 |---|---|---|
@@ -137,6 +161,25 @@ The following themes ship with the generator. Each supplies **prefixes** and **s
 
 ---
 
+## Scoring (v5)
+
+Eight weighted components feed the final score:
+
+| Component | Weight | Description |
+|---|---|---|
+| `ngram` | 0.28 | Character-trigram fit against brand corpus + WordNet + roots |
+| `wordfreq` | 0.16 | English word frequency (Zipf score via `wordfreq`) |
+| `phoneme` | 0.08 | CMU pronouncing-dict presence (rewards real/near-real words) |
+| `g2p` | 0.10 | Rule-based grapheme-to-phoneme phonotactic score for novel words |
+| `seam` | 0.13 | Smoothness of letter transitions at join boundaries |
+| `structure` | 0.12 | Syllable count, vowel ratio, hard-consonant balance |
+| `stress` | 0.07 | Stress pattern (trochee > iamb > other) via CMU dict |
+| `melody` | 0.06 | Alliteration + vowel harmony |
+
+Plus an additive **morpheme bonus** (0.55 per recognised theme morpheme, capped at 2.0).
+
+---
+
 ## Config File
 
 Copy and edit `configs/default.yml`:
@@ -147,22 +190,32 @@ themes:
 
 scoring:
   weights:
-    ngram: 0.35
-    wordfreq: 0.20
-    phoneme: 0.15
-    seam: 0.15
-    structure: 0.15
+    ngram: 0.28
+    wordfreq: 0.16
+    phoneme: 0.08
+    g2p: 0.10
+    seam: 0.13
+    structure: 0.12
+    stress: 0.07
+    melody: 0.06
 
 constraints:
   min_length: 5
   max_length: 12
-  banned_substrings:
-    - "hate"
-    - "crud"
+  banned_substrings: ["hate", "crud"]
 
 join:
   per_root_variants: 70
   allow_triples: false
+
+features:
+  safe_international: false
+  domain_check_tlds: [com, net, io]
+  rerank:
+    top_n: 20
+    model: llama3
+    ollama_url: "http://localhost:11434"
+    context: "a modern brand"
 ```
 
 ---
@@ -174,24 +227,78 @@ One name per line.
 
 ### TSV (`--include-scores`)
 ```
-name    score   ngram   wordfreq    phoneme seam    structure
-novacore    2.1470  0.7200  0.4800  1.0000  0.7133  0.5920
-...
+name    score   ngram   wordfreq    phoneme g2p seam    structure   stress  melody
+novacore    2.1470  0.7200  0.4800  1.0000  0.72  0.7133  0.5920  0.65  0.55
 ```
 
 ### JSONL (`--explain <file>`)
-One JSON object per line with full provenance:
 ```json
 {
   "name": "novacore",
   "score": 2.147,
-  "score_breakdown": {"ngram": 0.72, "wordfreq": 0.48, "phoneme": 1.0, "seam": 0.71, "structure": 0.59},
+  "score_breakdown": {"ngram": 0.72, "wordfreq": 0.48, "phoneme": 1.0,
+                      "g2p": 0.74, "seam": 0.71, "structure": 0.59,
+                      "stress": 0.65, "melody": 0.55},
   "components": ["nova", "core"],
   "join_strategy": "overlap",
   "affixes_used": [],
-  "theme_sources": ["power", "space"]
+  "theme_sources": ["power", "space"],
+  "domain_available": {"name": "novacore", "com": false, "net": true, "io": true},
+  "international_safe": true
 }
 ```
+
+---
+
+## International Safety Filter
+
+`--safe-international` blocks names containing offensive substrings in:
+Spanish, French, German, Italian, Portuguese, Dutch, Russian (romanised),
+Japanese (romanised), Chinese (pinyin), Hindi (romanised), Arabic (romanised),
+Korean (romanised), and English.
+
+---
+
+## Domain Availability Check
+
+`--check-domains` performs a DNS lookup for `<name>.<tld>` across each requested
+TLD (default `.com`, `.net`, `.io`). Uses stdlib `socket` — **no external dependency**.
+Runs concurrently for fast bulk checking.
+
+> DNS non-resolution is a proxy for availability; always confirm through a registrar.
+
+---
+
+## AI Re-ranking (Ollama)
+
+```bash
+# Install and start Ollama
+ollama serve && ollama pull llama3
+
+python -m portmanteau_power.cli input.txt output.txt \
+    --rerank-top 30 --rerank-model llama3 \
+    --rerank-context "B2B SaaS security platform"
+```
+
+Uses stdlib `urllib` — **no extra Python package**. Falls back to score-order gracefully.
+
+---
+
+## FastAPI Web API
+
+```bash
+pip install "portmanteau-power[api]"
+uvicorn portmanteau_power.api:app --reload --port 8000
+```
+
+```bash
+curl -X POST http://localhost:8000/generate \
+  -H "Content-Type: application/json" \
+  -d '{"words": ["power","nova","forge"], "target_size": 20,
+       "themes": ["power","tech"], "safe_international": true}'
+```
+
+Interactive docs at `http://localhost:8000/docs`.
 
 ---
 
@@ -199,6 +306,7 @@ One JSON object per line with full provenance:
 
 ```bash
 pip install pytest
+python -c "import nltk; nltk.download('wordnet'); nltk.download('omw-1.4')"
 pytest tests/ -v
 ```
 
@@ -209,16 +317,20 @@ pytest tests/ -v
 ```
 portmanteau_power/
 ├── __init__.py     Version constant
-├── cli.py          CLI entry point (argparse)
+├── cli.py          CLI entry point
 ├── generator.py    Core generation pipeline
-├── scoring.py      Trigram model, phoneme & seam scoring
-├── themes.py       Multi-domain morpheme banks (prefixes/suffixes)
-├── config.py       YAML/JSON config loader + CLI override merger
+├── scoring.py      Trigram, G2P, stress, melody, seam, phoneme scoring
+├── themes.py       18-domain morpheme banks
+├── data.py         Brand-name corpus + i18n safety blocklist
+├── domain.py       DNS domain-availability checker
+├── rerank.py       Ollama AI re-ranking (stdlib urllib)
+├── api.py          FastAPI web API (optional)
+├── config.py       YAML/JSON config loader
 └── explain.py      Candidate dataclass + JSONL/TSV writers
 configs/
-└── default.yml     Default configuration file
+└── default.yml     Default configuration (v5)
 tests/
-└── test_basic.py   Minimal validation tests
+└── test_basic.py   39 tests covering all features
 ```
 
 ---

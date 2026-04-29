@@ -86,6 +86,50 @@ def build_parser() -> argparse.ArgumentParser:
         help="Comma-separated substrings to ban from output.",
     )
 
+    # Safety / international
+    ap.add_argument(
+        "--safe-international", action="store_true",
+        help=(
+            "Filter out names that contain offensive substrings in common languages "
+            "(Spanish, French, German, Italian, Portuguese, Dutch, Russian, Japanese, "
+            "Chinese, Hindi, Arabic, Korean, English)."
+        ),
+    )
+
+    # Domain availability
+    ap.add_argument(
+        "--check-domains", action="store_true",
+        help=(
+            "Run a DNS availability check for each output name across .com/.net/.io. "
+            "Results are added to the --explain JSONL output and printed to stdout."
+        ),
+    )
+    ap.add_argument(
+        "--domain-tlds", metavar="com,net,...",
+        help="Comma-separated TLDs to check with --check-domains. (default: com,net,io)",
+    )
+
+    # AI re-ranking
+    ap.add_argument(
+        "--rerank-top", type=int, metavar="N",
+        help=(
+            "Re-rank the top N names using a local Ollama LLM before writing output. "
+            "Requires Ollama to be running (see --ollama-url)."
+        ),
+    )
+    ap.add_argument(
+        "--rerank-model", metavar="MODEL", default="llama3",
+        help="Ollama model name for --rerank-top. (default: llama3)",
+    )
+    ap.add_argument(
+        "--ollama-url", metavar="URL", default="http://localhost:11434",
+        help="Base URL of the Ollama server. (default: http://localhost:11434)",
+    )
+    ap.add_argument(
+        "--rerank-context", metavar="TEXT",
+        help="One-sentence description of the brand/product for --rerank-top.",
+    )
+
     # Output modes
     ap.add_argument(
         "--include-scores", action="store_true",
@@ -145,6 +189,10 @@ def main(argv: Optional[List[str]] = None) -> int:
         print(f"Error: {exc}", file=sys.stderr)
         return 1
 
+    # ---- Feature flags ----
+    if args.safe_international:
+        config.setdefault("features", {})["safe_international"] = True
+
     target_size = config.get("target_size", args.target_size)
 
     # ---- Ensure output directory exists ----
@@ -159,6 +207,43 @@ def main(argv: Optional[List[str]] = None) -> int:
     )
     results = generate(raw_words, config, target_size=target_size)
 
+    # ---- AI re-ranking (optional) ----
+    if args.rerank_top and args.rerank_top > 0:
+        from portmanteau_power.rerank import ai_rerank
+        context = args.rerank_context or config.get("features", {}).get(
+            "rerank", {}
+        ).get("context", "a modern brand")
+        print(
+            f"Re-ranking top {args.rerank_top} names via Ollama "
+            f"({args.ollama_url}, model={args.rerank_model}) …",
+            flush=True,
+        )
+        results = ai_rerank(
+            results,
+            context=context,
+            top_n=args.rerank_top,
+            model=args.rerank_model,
+            ollama_url=args.ollama_url,
+        )
+
+    # ---- Domain availability check (optional) ----
+    if args.check_domains:
+        from portmanteau_power.domain import check_domains_bulk
+        tlds_raw = args.domain_tlds or "com,net,io"
+        tlds = [t.strip() for t in tlds_raw.split(",") if t.strip()]
+        print(f"Checking domain availability ({', '.join('.' + t for t in tlds)}) …", flush=True)
+        names = [c.text for c in results]
+        domain_results = check_domains_bulk(names, tlds=tlds)
+        domain_map = {d["name"]: d for d in domain_results}
+        for c in results:
+            c.domain_available = domain_map.get(c.text)
+        # Print summary to stdout
+        free_count = sum(
+            1 for d in domain_results
+            if any(v is True for k, v in d.items() if k != "name")
+        )
+        print(f"  {free_count}/{len(results)} names have at least one TLD available.")
+
     # ---- Write main output ----
     if args.include_scores:
         write_tsv(results, str(out_path), include_breakdown=True)
@@ -169,7 +254,7 @@ def main(argv: Optional[List[str]] = None) -> int:
     if args.explain:
         explain_path = Path(args.explain)
         explain_path.parent.mkdir(parents=True, exist_ok=True)
-        write_jsonl(results, str(explain_path))
+        write_jsonl(results, str(args.explain))
         print(f"Explain output → {args.explain}  ({len(results)} records)")
 
     print(f"Done. Generated {len(results)} names → {args.output}")

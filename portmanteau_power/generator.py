@@ -32,6 +32,7 @@ from portmanteau_power.scoring import (
     NGramModel,
 )
 from portmanteau_power.explain import Candidate
+from portmanteau_power.data import BRAND_NAMES, safe_international_filter
 
 _CLEAN_RE = re.compile(r"[^a-z]")
 
@@ -248,6 +249,7 @@ def generate(
     allow_triples    = config["join"]["allow_triples"]
     triple_pool_size = config["join"]["triple_pool"]
     max_per_sig      = config["join"]["max_per_signature"]
+    safe_intl        = config.get("features", {}).get("safe_international", False)
 
     prefixes = get_prefixes(themes)
     suffixes = get_suffixes(themes)
@@ -274,6 +276,8 @@ def generate(
                     t = _clean(lem.name())
                     if t and len(t) >= 3 and is_alpha(t) and "_" not in lem.name():
                         training.add(t)
+    # Add curated brand-name corpus so the model "knows" catchy phonetics
+    training.update(BRAND_NAMES)
 
     ngram_model = build_ngram_model(training, n=3)
 
@@ -293,6 +297,8 @@ def generate(
             return None
         syl = approx_syllables(text)
         if not (min_syl <= syl <= max_syl):
+            return None
+        if safe_intl and not safe_international_filter(text):
             return None
         total, bd = score_candidate(
             text, ngram_model,

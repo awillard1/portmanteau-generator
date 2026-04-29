@@ -1,5 +1,12 @@
 """
 scoring.py – Character n-gram model, seam scoring, and overall candidate strength.
+
+v5 additions
+------------
+* rule_based_g2p_score  – phonotactic pronounceability for novel words
+* stress_score          – trochee/iamb stress-pattern bonus via CMU dict
+* melody_score          – alliteration + vowel-harmony signal
+* score_candidate updated to include all five dimensions + new components
 """
 
 from __future__ import annotations
@@ -179,6 +186,184 @@ def seam_score(left: str, right: str) -> float:
 
 
 # ---------------------------------------------------------------------------
+# Rule-based G2P pronounceability score (no external dependency)
+# ---------------------------------------------------------------------------
+
+# Valid English onset clusters (initial consonant groups before a vowel)
+_VALID_ONSETS = frozenset({
+    "bl", "br", "cl", "cr", "dr", "dw", "fl", "fr", "gl", "gr",
+    "ph", "pl", "pr", "sc", "sh", "sk", "sl", "sm", "sn", "sp",
+    "sq", "st", "sw", "th", "tr", "tw", "wh", "wr",
+    "scr", "shr", "spl", "spr", "str", "thr",
+    "ch", "ck", "ct", "gn", "kn", "mn", "ng", "nk", "pn", "pt",
+})
+
+# Valid English coda clusters (final consonant groups after a vowel)
+_VALID_CODAS = frozenset({
+    "ck", "ct", "ft", "ld", "lk", "ll", "lm", "ln", "lp", "lt",
+    "lf", "lv", "mp", "nd", "ng", "nk", "nt", "pt", "rb", "rd",
+    "rf", "rk", "rl", "rm", "rn", "rp", "rs", "rt", "rv", "rz",
+    "sk", "sp", "ss", "st", "sh", "th", "wn",
+    "mpt", "nct", "ngth", "nks", "rld", "rst",
+})
+
+# Digraphs that represent a single English phoneme
+_DIGRAPHS = frozenset({"ph", "th", "sh", "ch", "wh", "gh", "ck", "ng", "qu"})
+
+# Known silent/ugly consonant clusters to penalise
+_BAD_CLUSTERS = re.compile(r"(xk|kx|vd|dv|bf|fb|gv|vg|mf|fm|pk|kp)")
+
+
+def rule_based_g2p_score(word: str) -> float:
+    """
+    Phonotactic pronounceability score in [0, 1] based on English grapheme rules.
+
+    Rewards:
+      • recognised digraph patterns (th, sh, ch …)
+      • valid onset / coda clusters
+      • good vowel-to-consonant ratio
+    Penalises:
+      • impossible consonant clusters
+      • bizarre grapheme sequences
+    """
+    w = word.lower()
+    score = 0.5  # neutral starting point
+
+    # Digraph bonus
+    dg_count = sum(1 for dg in _DIGRAPHS if dg in w)
+    score += min(0.15, dg_count * 0.05)
+
+    # Valid onset at word start
+    for onset in _VALID_ONSETS:
+        if w.startswith(onset):
+            score += 0.05
+            break
+
+    # Valid coda at word end
+    for coda in _VALID_CODAS:
+        if w.endswith(coda):
+            score += 0.05
+            break
+
+    # Bad cluster penalty
+    if _BAD_CLUSTERS.search(w):
+        score -= 0.20
+
+    # Vowel ratio (ideal 0.35–0.50 for English)
+    vc = sum(1 for c in w if c in VOWELS)
+    ratio = vc / len(w) if w else 0
+    score += max(0.0, 0.15 - abs(ratio - 0.42) * 0.6)
+
+    # Alternating consonant-vowel pattern bonus
+    cv_changes = sum(
+        1 for i in range(len(w) - 1)
+        if (w[i] in VOWELS) != (w[i + 1] in VOWELS)
+    )
+    cv_ratio = cv_changes / max(1, len(w) - 1)
+    score += cv_ratio * 0.10
+
+    return max(0.0, min(1.0, score))
+
+
+# ---------------------------------------------------------------------------
+# Stress-pattern score (trochee / iamb preference)
+# ---------------------------------------------------------------------------
+
+def stress_score(word: str) -> float:
+    """
+    Score the stress pattern using CMU pronouncing dictionary.
+
+    Trochee (STRESS-unstress, e.g. *Twitter*, *Apple*) → 1.0
+    Dactyl  (STRESS-u-u, e.g. *Amazon*)               → 0.85
+    Iamb    (unstress-STRESS, e.g. *Slack*)            → 0.75
+    Single syllable                                     → 0.65
+    Other                                               → 0.40
+
+    Returns 0.0 when CMU data is unavailable.
+    """
+    if not _PRONOUNCING_OK:
+        return 0.0
+    phones_list = _pronouncing.phones_for_word(word)
+    if not phones_list:
+        return 0.0
+
+    phones = phones_list[0]
+    # Extract stress digits (0 = unstressed, 1 = primary, 2 = secondary)
+    stresses = [ch for ph in phones.split() for ch in ph if ch.isdigit()]
+    n = len(stresses)
+
+    if n == 0:
+        return 0.0
+    if n == 1:
+        return 0.65
+    if n == 2:
+        if stresses[0] in "12" and stresses[1] == "0":
+            return 1.00  # trochee
+        if stresses[0] == "0" and stresses[1] in "12":
+            return 0.75  # iamb
+        return 0.50
+    if n == 3:
+        if stresses[0] in "12" and stresses[1] == "0" and stresses[2] == "0":
+            return 0.85  # dactyl
+        if stresses[0] == "0" and stresses[1] == "0" and stresses[2] in "12":
+            return 0.60  # anapest
+    # Longer words: reward initial stress
+    if stresses[0] in "12":
+        return 0.70
+    return 0.40
+
+
+# ---------------------------------------------------------------------------
+# Melody score: alliteration + vowel harmony
+# ---------------------------------------------------------------------------
+
+def melody_score(word: str) -> float:
+    """
+    Score sound-aesthetic properties of *word* in [0, 1].
+
+    Signals rewarded:
+      • Alliteration: same consonant appears at start of multiple syllables
+      • Vowel harmony: one vowel type dominates (like brand names *Zoom*, *Slack*)
+      • Pleasant liquid consonants (l, r, m, n) — associated with brand memorability
+    """
+    if not word:
+        return 0.0
+    w = word.lower()
+    score = 0.3  # baseline
+
+    # --- Alliteration: same consonant at syllable onsets ---
+    # Approximate syllable onsets as positions right after each vowel
+    onsets = [w[0]] if w[0] in CONSONANTS else []
+    for i in range(1, len(w)):
+        if w[i - 1] in VOWELS and w[i] in CONSONANTS:
+            onsets.append(w[i])
+    if len(onsets) >= 2:
+        from collections import Counter
+        top_count = Counter(onsets).most_common(1)[0][1]
+        if top_count >= 2:
+            score += 0.20
+
+    # --- Vowel harmony: one vowel dominates ---
+    vowels_in_word = [c for c in w if c in VOWELS]
+    if vowels_in_word:
+        from collections import Counter
+        top_v, top_vcount = Counter(vowels_in_word).most_common(1)[0]
+        harmony_ratio = top_vcount / len(vowels_in_word)
+        score += harmony_ratio * 0.20
+
+    # --- Liquid / sonorant consonants (l, r, m, n) ---
+    liquid_ratio = sum(1 for c in w if c in "lrmn") / len(w)
+    score += min(0.15, liquid_ratio * 0.50)
+
+    # --- Penalise harsh sibilant overload ---
+    sibilant_ratio = sum(1 for c in w if c in "sz") / len(w)
+    if sibilant_ratio > 0.35:
+        score -= 0.10
+
+    return max(0.0, min(1.0, score))
+
+
+# ---------------------------------------------------------------------------
 # Overall strength score
 # ---------------------------------------------------------------------------
 
@@ -227,14 +412,17 @@ def score_candidate(
     Compute a total score plus a breakdown dict for *word*.
 
     Returns (total_score, breakdown_dict).
-    breakdown keys: ngram, wordfreq, phoneme, seam, structure
+    breakdown keys: ngram, wordfreq, phoneme, g2p, seam, structure, stress, melody
     """
     w = weights or {}
-    w_ngram    = w.get("ngram",     0.35)
-    w_wordfreq = w.get("wordfreq",  0.20)
-    w_phoneme  = w.get("phoneme",   0.15)
-    w_seam     = w.get("seam",      0.15)
-    w_struct   = w.get("structure", 0.15)
+    w_ngram    = w.get("ngram",     0.28)
+    w_wordfreq = w.get("wordfreq",  0.16)
+    w_phoneme  = w.get("phoneme",   0.08)
+    w_g2p      = w.get("g2p",       0.10)
+    w_seam     = w.get("seam",      0.13)
+    w_struct   = w.get("structure", 0.12)
+    w_stress   = w.get("stress",    0.07)
+    w_melody   = w.get("melody",    0.06)
 
     # --- n-gram ---
     ng = ngram_logprob(word, ngram_model, n=ngram_n)
@@ -246,8 +434,11 @@ def score_candidate(
     z = zipf(word)
     wf_scaled = max(0.0, (z - 1.0) / 5.0)  # normalise to ~[0,1]
 
-    # --- phoneme ---
+    # --- phoneme (CMU dict) ---
     ph = phoneme_score(word)
+
+    # --- rule-based G2P ---
+    g2p = rule_based_g2p_score(word)
 
     # --- seam (self-seam: consecutive pairs) ---
     seam_total = 0.0
@@ -284,6 +475,12 @@ def score_candidate(
     sibilant = sum(1 for c in word if c in "s") / len(word)
     struct_s = 0.4 * syl_s + 0.2 * ratio_s + 0.1 * hard_end + 0.15 * hard_c + 0.15 * liquid_c - 0.2 * max(0, sibilant - 0.3)
 
+    # --- stress pattern ---
+    st = stress_score(word)
+
+    # --- melody ---
+    mel = melody_score(word)
+
     # morpheme bonus
     mb = 0.0
     for m in morpheme_bonus_words:
@@ -295,16 +492,22 @@ def score_candidate(
         "ngram":    round(ng_scaled,   4),
         "wordfreq": round(wf_scaled,   4),
         "phoneme":  round(ph,          4),
+        "g2p":      round(g2p,         4),
         "seam":     round(seam_scaled, 4),
         "structure":round(struct_s,    4),
+        "stress":   round(st,          4),
+        "melody":   round(mel,         4),
     }
 
     total = (
         w_ngram    * ng_scaled
         + w_wordfreq * wf_scaled
         + w_phoneme  * ph
+        + w_g2p      * g2p
         + w_seam     * seam_scaled
         + w_struct   * struct_s
+        + w_stress   * st
+        + w_melody   * mel
         + mb
     )
 
