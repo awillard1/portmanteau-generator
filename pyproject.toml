@@ -1,0 +1,38 @@
+[build-system]
+requires = ["setuptools>=61", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "portmanteau-power"
+version = "4.0.0"
+description = "Configurable portmanteau / name generator with theme banks, n-gram scoring, and explainability."
+readme = "README.md"
+license = { text = "MIT" }
+requires-python = ">=3.9"
+keywords = ["portmanteau", "name-generator", "nlp", "branding"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Operating System :: OS Independent",
+    "Topic :: Text Processing :: Linguistic",
+]
+dependencies = [
+    "nltk>=3.8",
+    "wordfreq>=3.0",
+    "pronouncing>=0.2",
+    "pyyaml>=6.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov",
+]
+
+[project.scripts]
+portmanteau-power = "portmanteau_power.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["portmanteau_power*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

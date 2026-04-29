@@ -1,0 +1,60 @@
+# configs/default.yml
+# portmanteau_power v4 – Default configuration
+#
+# All keys are optional; missing keys fall back to built-in defaults.
+# Override any section on the command line or by creating your own config.
+
+themes:
+  # Themes to activate – controls which morpheme banks supply prefixes/suffixes.
+  # Available: power, government, business, healthcare, environment, religion,
+  #            tech, finance, education, security, energy, space, common,
+  #            social, food, sports, travel, arts
+  enabled:
+    - power
+    - government
+    - business
+    - healthcare
+    - environment
+    - religion
+    - tech
+    - finance
+    - education
+    - security
+    - energy
+    - space
+    - common
+    - social
+
+scoring:
+  # Relative importance of each scoring dimension (values are normalised internally)
+  weights:
+    ngram: 0.35        # character-trigram language-model fit
+    wordfreq: 0.20     # English word-frequency (wordfreq)
+    phoneme: 0.15      # CMU pronouncing-dict phoneme score
+    seam: 0.15         # smoothness of letter transitions
+    structure: 0.15    # syllable count, vowel ratio, hard-consonant balance
+
+  morpheme_bonus: 0.55  # extra score per recognised theme morpheme present
+
+constraints:
+  min_length: 5           # shortest allowed output name
+  max_length: 16          # longest allowed output name
+  min_syllables: 1
+  max_syllables: 5
+  banned_substrings: []   # add strings here to block them from output
+  # Examples:
+  # banned_substrings:
+  #   - "xxx"
+  #   - "hate"
+
+join:
+  per_root_variants: 70   # max WordNet variants per input root
+  seed_keep: 3000         # max seeds to carry forward before joins
+  join_pool: 450          # top seeds used as join building blocks
+  per_pair_keep: 10       # top candidates kept per pairwise join
+  local_window: 45        # how far ahead in pool to join (reduces O(n^2))
+  min_overlap: 2          # minimum shared characters for overlap joins
+  max_overlap: 6
+  allow_triples: false    # triple blends (slower; better coverage)
+  triple_pool: 120        # intermediate join pool size for triples
+  max_per_signature: 3    # max near-duplicates in final output
